@@ -11,6 +11,9 @@
 #import <objc/runtime.h>
 #import <JavaScriptCore/JavaScriptCore.h>
 
+NSString *const JSBErrorDomain = @"JSBErrorDomain";
+NSString *const JSBExceptionKey = @"JSBExceptionKey";
+
 @interface JSBContext () {
 @public
   JSObjectRef _arrayConstructor;
@@ -42,6 +45,8 @@
 
 static JSValueRef JSBObjectToJSValue(JSContextRef context, id object);
 static id JSBValueToObject(JSContextRef context, JSValueRef value);
+static inline NSError *JSBExceptionToNSError(JSContextRef context,
+                                             JSValueRef exception);
 
 // these functions are there in iOS but they are absent in headers
 void NSMapInsert(NSMapTable *table, const void *key, const void *value);
@@ -307,6 +312,18 @@ bool JSBGlobalSetProperty(JSContextRef context, JSObjectRef objectRef,
   return self;
 }
 
+static inline NSError *JSBExceptionToNSError(JSContextRef context,
+                                             JSValueRef exception)
+{
+  if (!exception) return nil;
+  return [NSError
+      errorWithDomain:JSBErrorDomain
+                 code:0
+             userInfo:@{
+                        JSBExceptionKey : JSBValueToObject(context, exception)
+                      }];
+}
+
 - (void)install:(id)object withName:(NSString *)name
 {
   // count js_ methods
@@ -402,19 +419,24 @@ bool JSBGlobalSetProperty(JSContextRef context, JSObjectRef objectRef,
   JSStringRelease(nameRef);
 }
 
-- (id)evaluate:(NSString *)script
+- (id)evaluate:(NSString *)script error:(NSError **)error
 {
   JSStringRef scriptString =
       JSStringCreateWithCFString((__bridge CFStringRef)script);
-  JSValueRef ret = JSEvaluateScript(_context, scriptString, 0, 0, 0, 0);
+  JSValueRef exception = NULL;
+  JSValueRef ret =
+      JSEvaluateScript(_context, scriptString, NULL, NULL, 0, &exception);
   JSStringRelease(scriptString);
 
   id object = JSBValueToObject(_context, ret);
   JSGarbageCollect(_context);
+  if (error) *error = JSBExceptionToNSError(_context, exception);
   return object;
 }
 
-- (id)call:(NSString *)name arguments:(NSArray *)arguments
+- (id)call:(NSString *)name
+    arguments:(NSArray *)arguments
+        error:(NSError **)error
 {
   JSStringRef nameRef = JSStringCreateWithCFString((__bridge CFStringRef)name);
   JSValueRef methodValue =
@@ -428,11 +450,14 @@ bool JSBGlobalSetProperty(JSContextRef context, JSObjectRef objectRef,
     argumentArray[i] = JSBObjectToJSValue(_context, arguments[i]);
   }
 
-  JSValueRef ret = JSObjectCallAsFunction(_context, methodObject, _global,
-                                          arguments.count, argumentArray, NULL);
+  JSValueRef exception = NULL;
+  JSValueRef ret =
+      JSObjectCallAsFunction(_context, methodObject, _global, arguments.count,
+                             argumentArray, &exception);
 
   id object = JSBValueToObject(_context, ret);
   JSGarbageCollect(_context);
+  if (error) *error = JSBExceptionToNSError(_context, exception);
   return object;
 }
 
