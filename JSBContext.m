@@ -28,29 +28,17 @@
 
 @end
 
-#define JS_TO_OBJC_CASES                                                       \
-  CASE('@', id, JSBValueToObject);                                             \
-  CASE('d', double, JSValueToNumber, NULL);                                    \
-  CASE('f', float, JSValueToNumber, NULL);                                     \
-  CASE('i', int, JSValueToNumber, NULL);                                       \
-  CASE('I', unsigned int, JSValueToNumber, NULL);                              \
-  CASE('l', long, JSValueToNumber, NULL);                                      \
-  CASE('L', unsigned long, JSValueToNumber, NULL);                             \
-  CASE('q', long long, JSValueToNumber, NULL);                                 \
-  CASE('Q', unsigned long long, JSValueToNumber, NULL);                        \
-  CASE('B', bool, JSValueToBoolean);
-
-#define OBJC_TO_JS_CASES                                                       \
-  CASE('@', __unsafe_unretained id, JSBObjectToJSValue);                       \
-  CASE('d', double, JSValueMakeNumber);                                        \
-  CASE('f', float, JSValueMakeNumber);                                         \
-  CASE('i', int, JSValueMakeNumber);                                           \
-  CASE('I', unsigned int, JSValueMakeNumber);                                  \
-  CASE('l', long, JSValueMakeNumber);                                          \
-  CASE('L', unsigned long, JSValueMakeNumber);                                 \
-  CASE('q', long long, JSValueMakeNumber);                                     \
-  CASE('Q', unsigned long long, JSValueMakeNumber);                            \
-  CASE('B', bool, JSValueMakeBoolean);
+#define CAST_CASES                                                             \
+  CASE('@', __autoreleasing, id, JSBValueToObject, JSBObjectToJSValue);        \
+  CASE('d', , double, JSValueToNumber, JSValueMakeNumber, NULL);               \
+  CASE('f', , float, JSValueToNumber, JSValueMakeNumber, NULL);                \
+  CASE('i', , int, JSValueToNumber, JSValueMakeNumber, NULL);                  \
+  CASE('I', , unsigned int, JSValueToNumber, JSValueMakeNumber, NULL);         \
+  CASE('l', , long, JSValueToNumber, JSValueMakeNumber, NULL);                 \
+  CASE('L', , unsigned long, JSValueToNumber, JSValueMakeNumber, NULL);        \
+  CASE('q', , long long, JSValueToNumber, JSValueMakeNumber, NULL);            \
+  CASE('Q', , unsigned long long, JSValueToNumber, JSValueMakeNumber, NULL);   \
+  CASE('B', , bool, JSValueToBoolean, JSValueMakeBoolean);
 
 static JSValueRef JSBObjectToJSValue(JSContextRef context, id object);
 static id JSBValueToObject(JSContextRef context, JSValueRef value);
@@ -103,14 +91,14 @@ static JSValueRef JSBMethodCall(JSContextRef context, JSObjectRef methodRef,
     invocation.selector = selector;
     NSUInteger argumentCount = [methodSignature numberOfArguments];
 
-#define CASE(C, T, F, ...)                                                     \
+#define CASE(C, TF, T, F, U, ...)                                              \
   case C: {                                                                    \
-    T value = (T)F(context, arguments[i], ##__VA_ARGS__);                      \
+    TF T value = (T)F(context, arguments[i], ##__VA_ARGS__);                   \
     [invocation setArgument:&value atIndex:i + 2];                             \
   } break;
     for (unsigned i = 0; i < argumentCount - 2; ++i) {
       switch ([methodSignature getArgumentTypeAtIndex:i + 2][0]) {
-        JS_TO_OBJC_CASES
+        CAST_CASES
       }
     }
 #undef CASE
@@ -118,14 +106,14 @@ static JSValueRef JSBMethodCall(JSContextRef context, JSObjectRef methodRef,
     [invocation retainArguments];
     [invocation invoke];
 
-#define CASE(C, T, F)                                                          \
+#define CASE(C, TF, T, U, F, ...)                                              \
   case C: {                                                                    \
     T value;                                                                   \
     [invocation getReturnValue:&value];                                        \
     return F(context, value);                                                  \
   }
     switch ([methodSignature methodReturnType][0]) {
-      OBJC_TO_JS_CASES
+      CAST_CASES
     default:
       return JSValueMakeUndefined(context);
     }
@@ -470,7 +458,7 @@ bool JSBGlobalSetProperty(JSContextRef context, JSObjectRef objectRef,
     NSUInteger argumentCount = methodSignature.numberOfArguments;
     JSValueRef arguments[argumentCount];
 
-#define CASE(C, T, F)                                                          \
+#define CASE(C, TF, T, U, F, ...)                                              \
   case C: {                                                                    \
     T value;                                                                   \
     [invocation getArgument:&value atIndex:i + 2];                             \
@@ -478,7 +466,7 @@ bool JSBGlobalSetProperty(JSContextRef context, JSObjectRef objectRef,
   } break;
     for (NSUInteger i = 0; i < argumentCount - 2; ++i) {
       switch ([methodSignature getArgumentTypeAtIndex:i + 2][0]) {
-        OBJC_TO_JS_CASES
+        CAST_CASES
       default:
         arguments[i] = JSValueMakeUndefined(_context);
       }
@@ -489,13 +477,13 @@ bool JSBGlobalSetProperty(JSContextRef context, JSObjectRef objectRef,
                                       argumentCount, arguments, NULL);
   }
 
-#define CASE(C, T, F, ...)                                                     \
+#define CASE(C, TF, T, F, U, ...)                                              \
   case C: {                                                                    \
-    T value = (T)F(_context, valueRef, ##__VA_ARGS__);                         \
+    TF T value = (T)F(_context, valueRef, ##__VA_ARGS__);                      \
     [invocation setReturnValue:&value];                                        \
   } break;
   switch ([methodSignature methodReturnType][0]) {
-    JS_TO_OBJC_CASES
+    CAST_CASES
   default: {
     NSUInteger returnLength = [methodSignature methodReturnLength];
     char zero[returnLength];
