@@ -141,6 +141,20 @@ static JSValueRef JSBDictionaryGetProperty(JSContextRef context,
   return JSBObjectToJSValue(context, value);
 }
 
+static bool JSBDictionarySetProperty(JSContextRef context,
+                                     JSObjectRef objectRef,
+                                     JSStringRef propertyNameRef,
+                                     JSValueRef valueRef, JSValueRef *exception)
+{
+  NSMutableDictionary *dictionary =
+      (__bridge NSMutableDictionary *)JSObjectGetPrivate(objectRef);
+  NSString *propertyName = (__bridge_transfer NSString *)JSStringCopyCFString(
+      kCFAllocatorDefault, propertyNameRef);
+  id value = JSBValueToObject(context, valueRef);
+  dictionary[propertyName] = value;
+  return YES;
+}
+
 static void
 JSBDictionaryGetPropertyNames(JSContextRef context, JSObjectRef objectRef,
                               JSPropertyNameAccumulatorRef propertyNames)
@@ -175,7 +189,7 @@ static JSValueRef JSBObjectToJSValue(JSContextRef context, id object)
         ((__bridge JSBContext *)JSObjectGetPrivate(
              JSContextGetGlobalObject(context)))->_dictionaryClass;
     return JSObjectMake(context, dictionaryClass,
-                        (__bridge_retained void *)object);
+                        (__bridge_retained void *)[object mutableCopy]);
   } else if ([object isKindOfClass:[NSNumber class]]) {
     return JSValueMakeNumber(context, [object doubleValue]);
   } else if ([object isKindOfClass:[NSNull class]]) {
@@ -289,6 +303,7 @@ bool JSBGlobalSetProperty(JSContextRef context, JSObjectRef objectRef,
   dictionaryDefinition.attributes = kJSClassAttributeNone;
   dictionaryDefinition.getProperty = JSBDictionaryGetProperty;
   dictionaryDefinition.getPropertyNames = JSBDictionaryGetPropertyNames;
+  dictionaryDefinition.setProperty = JSBDictionarySetProperty;
   dictionaryDefinition.convertToType = JSBObjectConvertToTypeCallback;
   _dictionaryClass = JSClassCreate(&dictionaryDefinition);
 
