@@ -3,7 +3,7 @@
 //  JavaScriptBridging
 //
 //  Created by Adam Strzelecki on 21.09.2013.
-//  Copyright (c) 2013 nanoANT Adam Strzelecki. All rights reserved.
+//  Copyright (c) 2013-2014 nanoANT Adam Strzelecki. All rights reserved.
 //
 
 #import "JSBContext.h"
@@ -14,10 +14,16 @@
 NSString *const JSBErrorDomain = @"JSBErrorDomain";
 NSString *const JSBExceptionKey = @"JSBExceptionKey";
 
+// set to 1 if you want use Foundation dictionaries when converting to JSValue
+#define JSB_USE_DICTIONARY 0
+#define JSB_USE_MUTABLE_DICTIONARY 0
+
 @interface JSBContext () {
 @public
   JSObjectRef _arrayConstructor;
+#if JSB_USE_DICTIONARY
   JSClassRef _dictionaryClass;
+#endif // JSB_USE_DICTIONARY
   NSMapTable *_methodMap;
   NSMapTable *_propertyMap;
 }
@@ -25,7 +31,9 @@ NSString *const JSBExceptionKey = @"JSBExceptionKey";
 @property(nonatomic, assign) JSGlobalContextRef context;
 @property(nonatomic, assign) JSObjectRef global;
 @property(nonatomic, assign) JSObjectRef arrayConstructor;
+#if JSB_USE_DICTIONARY
 @property(nonatomic, assign) JSClassRef dictionaryClass;
+#endif // JSB_USE_DICTIONARY
 @property(nonatomic, strong) NSMapTable *methodMap;
 @property(nonatomic, strong) NSMapTable *propertyMap;
 
@@ -128,6 +136,7 @@ static JSValueRef JSBMethodCall(JSContextRef context, JSObjectRef methodRef,
   return JSValueMakeUndefined(context);
 }
 
+#if JSB_USE_DICTIONARY
 static JSValueRef JSBDictionaryGetProperty(JSContextRef context,
                                            JSObjectRef objectRef,
                                            JSStringRef propertyNameRef,
@@ -141,6 +150,7 @@ static JSValueRef JSBDictionaryGetProperty(JSContextRef context,
   return JSBObjectToJSValue(context, value);
 }
 
+#if JSB_USE_MUTABLE_DICTIONARY
 static bool JSBDictionarySetProperty(JSContextRef context,
                                      JSObjectRef objectRef,
                                      JSStringRef propertyNameRef,
@@ -154,6 +164,7 @@ static bool JSBDictionarySetProperty(JSContextRef context,
   dictionary[propertyName] = value;
   return YES;
 }
+#endif // JSB_USE_MUTABLE_DICTIONARY
 
 static void
 JSBDictionaryGetPropertyNames(JSContextRef context, JSObjectRef objectRef,
@@ -168,6 +179,7 @@ JSBDictionaryGetPropertyNames(JSContextRef context, JSObjectRef objectRef,
     JSStringRelease(propertyNameRef);
   }
 }
+#endif // JSB_USE_DICTIONARY
 
 static JSValueRef JSBObjectToJSValue(JSContextRef context, id object)
 {
@@ -185,11 +197,31 @@ static JSValueRef JSBObjectToJSValue(JSContextRef context, id object)
     }
     return JSObjectMakeArray(context, count, elements, NULL);
   } else if ([object isKindOfClass:[NSDictionary class]]) {
+#if JSB_USE_DICTIONARY
     JSClassRef dictionaryClass =
         ((__bridge JSBContext *)JSObjectGetPrivate(
              JSContextGetGlobalObject(context)))->_dictionaryClass;
-    return JSObjectMake(context, dictionaryClass,
-                        (__bridge_retained void *)[object mutableCopy]);
+    return JSObjectMake(context, dictionaryClass, (__bridge_retained void *)
+#if JSB_USE_MUTABLE_DICTIONARY
+                        [object mutableCopy]
+#else
+                        object
+#endif // JSB_USE_MUTABLE_DICTIONARY
+                        );
+#else
+    JSObjectRef objectRef = JSObjectMake(context, NULL, NULL);
+    NSDictionary *dictionary = (NSDictionary *)object;
+    for (NSString *key in dictionary) {
+      JSStringRef nameRef =
+          JSStringCreateWithCFString((__bridge CFStringRef)key);
+      id value = dictionary[key];
+      JSObjectSetProperty(context, objectRef, nameRef,
+                          JSBObjectToJSValue(context, value),
+                          kJSPropertyAttributeNone, NULL);
+      JSStringRelease(nameRef);
+    }
+    return objectRef;
+#endif // JSB_USE_DICTIONARY
   } else if ([object isKindOfClass:[NSNumber class]]) {
     return JSValueMakeNumber(context, [object doubleValue]);
   } else if ([object isKindOfClass:[NSNull class]]) {
@@ -299,13 +331,17 @@ bool JSBGlobalSetProperty(JSContextRef context, JSObjectRef objectRef,
                             valueOptions:NSPointerFunctionsOpaquePersonality |
                                          NSPointerFunctionsOpaqueMemory];
 
+#if JSB_USE_DICTIONARY
   JSClassDefinition dictionaryDefinition = kJSClassDefinitionEmpty;
   dictionaryDefinition.attributes = kJSClassAttributeNone;
   dictionaryDefinition.getProperty = JSBDictionaryGetProperty;
   dictionaryDefinition.getPropertyNames = JSBDictionaryGetPropertyNames;
+#if JSB_USE_MUTABLE_DICTIONARY
   dictionaryDefinition.setProperty = JSBDictionarySetProperty;
+#endif // JSB_USE_MUTABLE_DICTIONARY
   dictionaryDefinition.convertToType = JSBObjectConvertToTypeCallback;
   _dictionaryClass = JSClassCreate(&dictionaryDefinition);
+#endif // JSB_USE_DICTIONARY
 
   JSClassDefinition globalDefinition = kJSClassDefinitionEmpty;
   globalDefinition.attributes = kJSClassAttributeNone;
@@ -537,7 +573,9 @@ static inline NSError *JSBExceptionToNSError(JSContextRef context,
 - (void)dealloc
 {
   JSGlobalContextRelease(_context);
+#if JSB_USE_DICTIONARY
   JSClassRelease(_dictionaryClass);
+#endif // JSB_USE_DICTIONARY
 }
 
 @end

@@ -3,7 +3,7 @@
 //  JavaScriptBridging
 //
 //  Created by Adam Strzelecki on 21.09.2013.
-//  Copyright (c) 2013 nanoANT Adam Strzelecki. All rights reserved.
+//  Copyright (c) 2013-2014 nanoANT Adam Strzelecki. All rights reserved.
 //
 
 #import <Foundation/Foundation.h>
