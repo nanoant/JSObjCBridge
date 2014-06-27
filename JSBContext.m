@@ -121,7 +121,7 @@ static JSValueRef JSBMethodCall(JSContextRef context, JSObjectRef methodRef,
 
 #define CASE(C, TF, T, U, F, ...)                                              \
   case C: {                                                                    \
-    T value;                                                                   \
+    TF T value;                                                                \
     [invocation getReturnValue:&value];                                        \
     return F(context, value);                                                  \
   }
