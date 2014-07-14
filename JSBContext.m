@@ -102,14 +102,14 @@ static JSValueRef JSBMethodCall(JSContextRef context, JSObjectRef methodRef,
         [NSInvocation invocationWithMethodSignature:methodSignature];
     invocation.target = object;
     invocation.selector = selector;
-    NSUInteger argumentCount = [methodSignature numberOfArguments];
+    argumentCount = MIN(argumentCount, [methodSignature numberOfArguments] - 2);
 
 #define CASE(C, TF, T, F, U, ...)                                              \
   case C: {                                                                    \
     TF T value = (T)F(context, arguments[i], ##__VA_ARGS__);                   \
     [invocation setArgument:&value atIndex:i + 2];                             \
   } break;
-    for (unsigned i = 0; i < argumentCount - 2; ++i) {
+    for (unsigned i = 0; i < argumentCount; ++i) {
       switch ([methodSignature getArgumentTypeAtIndex:i + 2][0]) {
         CAST_CASES
       }
