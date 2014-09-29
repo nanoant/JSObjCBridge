@@ -295,6 +295,7 @@ static id JSBValueToObject(JSContextRef context, JSValueRef value)
   }
 }
 
+#if JSB_USE_GLOBAL_PROPERTIES
 JSValueRef JSBGlobalGetProperty(JSContextRef context, JSObjectRef objectRef,
                                 JSStringRef propertyNameRef,
                                 JSValueRef *exception)
@@ -317,6 +318,7 @@ bool JSBGlobalSetProperty(JSContextRef context, JSObjectRef objectRef,
   NSMapInsert(propertyMap, (__bridge void *)propertyName, valueRef);
   return true;
 }
+#endif
 
 @implementation JSBContext
 
@@ -349,8 +351,10 @@ bool JSBGlobalSetProperty(JSContextRef context, JSObjectRef objectRef,
 
   JSClassDefinition globalDefinition = kJSClassDefinitionEmpty;
   globalDefinition.attributes = kJSClassAttributeNone;
+#if JSB_USE_GLOBAL_PROPERTIES
   globalDefinition.getProperty = JSBGlobalGetProperty;
   globalDefinition.setProperty = JSBGlobalSetProperty;
+#endif
   globalDefinition.convertToType = JSBObjectConvertToTypeCallback;
   JSClassRef globalClass = JSClassCreate(&globalDefinition);
   _context = JSGlobalContextCreate(globalClass);
