@@ -230,6 +230,15 @@ static JSValueRef JSBObjectToJSValue(JSContextRef context, id object)
   return JSValueMakeUndefined(context);
 }
 
+static NSString *JSBValueToString(JSContextRef context, JSValueRef value)
+{
+  JSStringRef stringRef = JSValueToStringCopy(context, value, NULL);
+  NSString *string = (__bridge_transfer NSString *)JSStringCopyCFString(
+      kCFAllocatorDefault, stringRef);
+  JSStringRelease(stringRef);
+  return string;
+}
+
 static id JSBValueToObject(JSContextRef context, JSValueRef value)
 {
   if (!value) return nil;
@@ -272,13 +281,8 @@ static id JSBValueToObject(JSContextRef context, JSValueRef value)
       return [dictionary copy];
     }
   }
-  case kJSTypeString: {
-    JSStringRef stringRef = JSValueToStringCopy(context, value, NULL);
-    NSString *string = (__bridge_transfer NSString *)JSStringCopyCFString(
-        kCFAllocatorDefault, stringRef);
-    JSStringRelease(stringRef);
-    return string;
-  }
+  case kJSTypeString:
+    return JSBValueToString(context, value);
   case kJSTypeNumber:
     return @(JSValueToNumber(context, value, NULL));
   case kJSTypeBoolean:
@@ -371,8 +375,9 @@ static inline NSError *JSBExceptionToNSError(JSContextRef context,
       errorWithDomain:JSBErrorDomain
                  code:0
              userInfo:@{
-                        JSBExceptionKey : JSBValueToObject(context, exception)
-                      }];
+               JSBExceptionKey : JSBValueToObject(context, exception),
+               NSLocalizedDescriptionKey : JSBValueToString(context, exception)
+             }];
 }
 
 - (void)install:(id)object withName:(NSString *)name
