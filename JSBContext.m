@@ -203,9 +203,9 @@ static JSValueRef JSBObjectToJSValue(JSContextRef context, id object)
              JSContextGetGlobalObject(context)))->_dictionaryClass;
     return JSObjectMake(context, dictionaryClass, (__bridge_retained void *)
 #if JSB_USE_MUTABLE_DICTIONARY
-                        [object mutableCopy]
+                                                      [object mutableCopy]
 #else
-                        object
+                                                      object
 #endif // JSB_USE_MUTABLE_DICTIONARY
                         );
 #else
